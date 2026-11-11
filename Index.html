@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Run Hero</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;font-family:system-ui,Arial,sans-serif;color:#f8fbff;
+    background:linear-gradient(#14264a,#10162d 58%,#0c352c);display:flex;align-items:center;justify-content:center;padding:18px}
+  .wrap{width:min(760px,100%);text-align:center}
+  h1{font-size:clamp(2rem,7vw,3.6rem);margin:4px 0;color:#ffe28a}
+  .sub{color:#c9d8ef;margin:0 0 18px}
+  .panel{background:#ffffff12;border:1px solid #ffffff2a;border-radius:24px;padding:18px;box-shadow:0 18px 45px #0005}
+  .stats{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{background:#0b1834;border:1px solid #ffffff24;padding:9px 16px;border-radius:13px;min-width:105px}
+  .stat small{display:block;color:#aebfe0;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em}
+  .stat strong{font-size:1.35rem}
+  .field{position:relative;overflow:hidden;border-radius:18px;height:290px;
+    background:linear-gradient(#75bce8 0 42%,#368b54 42% 100%);border:2px solid #ffffff30}
+  .sun{position:absolute;right:8%;top:9%;width:38px;height:38px;background:#ffe99b;border-radius:50%;box-shadow:0 0 28px #fff5a5}
+  .stands{position:absolute;left:0;right:0;top:39%;height:25%;background:repeating-linear-gradient(90deg,#263d61 0 13px,#314e76 13px 26px);opacity:.9}
+  .grass{position:absolute;bottom:-110px;left:50%;width:440px;height:300px;transform:translateX(-50%) rotate(45deg);background:#5bb66a;border:3px solid #e8d79b}
+  .diamond{position:absolute;left:50%;bottom:35px;width:150px;height:150px;transform:translateX(-50%) rotate(45deg);background:#c58b52;border:3px solid #fff0c5}
+  .plate{position:absolute;left:50%;bottom:23px;transform:translateX(-50%);width:30px;height:23px;background:#fff;clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%)}
+  .pitcher{position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);font-size:44px;z-index:3}
+  .batter{position:absolute;left:24%;bottom:36px;font-size:55px;z-index:4;transform:scaleX(-1)}
+  .ball{position:absolute;left:50%;top:47%;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px #dce7ef;z-index:5;display:none}
+  .message{min-height:48px;margin:14px 0 8px;font-size:1.1rem;font-weight:750}
+  button{border:0;border-radius:14px;padding:13px 22px;font-weight:850;font-size:1rem;cursor:pointer}
+  button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+  .primary{background:#ffe28a;color:#18213b;min-width:150px}
+  .secondary{background:#d6e6ff;color:#17213b}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .help{font-size:.88rem;color:#c6d4eb;line-height:1.5;margin:14px auto 0;max-width:550px}
+  @keyframes fly{0%{left:50%;top:47%;transform:scale(1)}100%{left:88%;top:5%;transform:scale(.45)}}
+  .ball.fly{display:block;animation:fly .65s ease-out forwards}
+  @media(max-width:480px){.field{height:245px}.diamond{width:120px;height:120px}.grass{width:360px;height:250px}.batter{font-size:45px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚾ HOME RUN HERO</h1>
+  <p class="sub">An original mini baseball batting game</p>
+  <div class="panel">
+    <div class="stats">
+      <div class="stat"><small>Score</small><strong id="score">0</strong></div>
+      <div class="stat"><small>Best</small><strong id="best">0</strong></div>
+      <div class="stat"><small>Pitches left</small><strong id="left">10</strong></div>
+    </div>
+    <div class="field" aria-label="Cartoon baseball field">
+      <div class="sun"></div><div class="stands"></div><div class="grass"></div>
+      <div class="diamond"></div><div class="plate"></div>
+      <div class="pitcher">🧢</div><div class="batter">🏏</div><div class="ball" id="ball"></div>
+    </div>
+    <div class="message" id="message" aria-live="polite">Press Start Game when you're ready!</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="primary" id="start">Start Game</button>
+      <button class="secondary" id="swing" disabled>SWING! ⚾</button>
+    </div>
+    <p class="help">A pitch comes toward the plate. Press SWING! or tap the space bar when the ball gets close. Better timing earns more points. You get 10 pitches!</p>
+  </div>
+  <p class="help">Made for fun • No account needed • No external game sites</p>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let score=0, left=10, active=false, pitchTimer=null, pitchStart=0, duration=1550, canSwing=false, best=0;
+  try { best=Number(localStorage.getItem('homeRunHeroBest')||0); } catch(e) {}
+  $('best').textContent=best;
+  function update(){ $('score').textContent=score; $('left').textContent=left; }
+  function say(t){ $('message').textContent=t; }
+  function start(){
+    clearTimeout(pitchTimer); score=0; left=10; active=true; canSwing=false; update();
+    $('start').textContent='Restart Game'; $('swing').disabled=false;
+    say('Get ready… watch the pitch!');
+    nextPitch();
+  }
+  function nextPitch(){
+    if(!active) return;
+    if(left<=0){ finish(); return; }
+    canSwing=true; pitchStart=performance.now(); duration=1450+Math.random()*450;
+    const ball=$('ball'); ball.className='ball'; ball.style.display='block'; ball.style.animation='none';
+    ball.offsetHeight; ball.style.animation=`fly ${duration}ms linear forwards`;
+    say('Pitch coming… time your swing!');
+    pitchTimer=setTimeout(()=>{ if(canSwing){canSwing=false; left--; update(); say('STRIKE! The pitch got by you.'); setTimeout(nextPitch,850); }},duration);
+  }
+  function swing(){
+    if(!active || !canSwing) return;
+    const elapsed=performance.now()-pitchStart;
+    const progress=elapsed/duration;
+    canSwing=false; clearTimeout(pitchTimer);
+    $('ball').style.display='none';
+    let points=0, result='';
+    if(progress>=.68 && progress<=.84){points=3;result='HOME RUN! Perfect timing! 🚀';}
+    else if(progress>=.54 && progress<.68 || progress>.84 && progress<=.94){points=2;result='GREAT HIT! Double!';}
+    else if(progress>=.38 && progress<.54 || progress>.94){points=1;result='Nice contact! Single!';}
+    else {result='Too early! Swing and a miss.';}
+    score+=points; left--; update(); say(result+(points?` +${points} points`:''));
+    if(score>best){best=score;$('best').textContent=best;try{localStorage.setItem('homeRunHeroBest',String(best));}catch(e){}}
+    setTimeout(nextPitch,1000);
+  }
+  function finish(){active=false;$('swing').disabled=true;$('ball').style.display='none';say(`Game over! Final score: ${score}. ${score>=15?'Amazing batting!': 'Play again and beat your best!'}`);$('start').textContent='Play Again';}
+  $('start').addEventListener('click',start);
+  $('swing').addEventListener('click',swing);
+  document.addEventListener('keydown',e=>{if(e.code==='Space' && !e.repeat){e.preventDefault();swing();}});
+})();
+</script>
+</body>
+</html>
